@@ -5,9 +5,12 @@ from utils import (
     pso_2d_bin_packing,
 )
 
+from pprint import pformat
+
 if __name__ == "__main__":
     parser = get_arg_parser()
     args = parser.parse_args()
+    print(f"Initializing with the following args:\n{pformat(vars(args))}")
     num_boxes, box_dims, bin_width, bin_height = parse_test_case_from_file(
         path=args.test_case
     )

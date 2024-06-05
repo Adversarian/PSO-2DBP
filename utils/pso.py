@@ -45,23 +45,31 @@ def fitness_function(position, bin_width, bin_height, box_dims):
             h, w = box_dims[i]
         bins[bin_num].append((x, y, w, h))
 
-    num_bins_used = len(bins)
-    penalty = 0
+    overlap_penalty = 0
+    free_space = 0
 
     for bin_num, boxes in bins.items():
+        bin_free_space = bin_width * bin_height
         for i, (x1, y1, w1, h1) in enumerate(boxes):
+            bin_free_space -= w1 * h1
+            # Check if the box exceeds bin boundaries
             if x1 + w1 > bin_width or y1 + h1 > bin_height:
-                penalty += 1
+                overlap_penalty += 1
             for j, (x2, y2, w2, h2) in enumerate(boxes):
                 if i != j:
                     if not (
-                        x1 + w1 <= x2 or x2 + w2 <= x1 or y1 + h1 <= y2 or y2 + h2 <= y1
+                        x1 + w1 <= x2 or x1 >= x2 + w2 or y1 + h1 <= y2 or y1 >= y2 + h2
                     ):
-                        penalty += 1
+                        overlap_penalty += 1
+        free_space += bin_free_space
 
-    penalty_multiplier = 1000  # High penalty to prioritize feasible solutions
+    # Assign a very large penalty if there's any overlap
+    if overlap_penalty > 0:
+        fitness = 1e15
+    else:
+        fitness = len(bins) + free_space**2
 
-    return num_bins_used + penalty * penalty_multiplier
+    return fitness
 
 
 def update_velocity(particle, global_best_position, w, c1, c2):
@@ -86,64 +94,46 @@ def update_position(particle):
         particle.position[i][2] = max(0, min(particle.bin_height - box_height, y))
 
 
-def best_fit_decreasing(num_boxes, box_dims, bin_width, bin_height):
+def best_fit_decreasing(box_dims, bin_width, bin_height):
     boxes = sorted(enumerate(box_dims), key=lambda x: max(x[1]), reverse=True)
     bins = []
     position = []
 
     for idx, (box_width, box_height) in boxes:
-        best_bin = None
-        min_space_left = float("inf")
+        placed = False
         for bin_num, bin in enumerate(bins):
-            if can_place_in_bin(bin, box_width, box_height, bin_width, bin_height):
-                space_left = calculate_space_left(bin, bin_width, bin_height)
-                if space_left < min_space_left:
-                    min_space_left = space_left
-                    best_bin = bin_num
-            if can_place_in_bin(bin, box_height, box_width, bin_width, bin_height):
-                space_left = calculate_space_left(bin, bin_width, bin_height)
-                if space_left < min_space_left:
-                    min_space_left = space_left
-                    best_bin = bin_num
-        if best_bin is None:
+            for x in range(bin_width - box_width + 1):
+                for y in range(bin_height - box_height + 1):
+                    if can_place_in_bin(
+                        bin, x, y, box_width, box_height, bin_width, bin_height
+                    ):
+                        bins[bin_num].append((x, y, box_width, box_height))
+                        position.append((bin_num, x, y, 0))
+                        placed = True
+                        break
+                if placed:
+                    break
+            if placed:
+                break
+        if not placed:
             bins.append([(0, 0, box_width, box_height)])
             position.append((len(bins) - 1, 0, 0, 0))
-        else:
-            if space_left == calculate_space_left(
-                bins[best_bin], bin_width, bin_height
-            ):
-                place_box_in_bin(
-                    bins[best_bin], box_width, box_height, bin_width, bin_height
-                )
-                position.append(
-                    (best_bin, bins[best_bin][-1][0], bins[best_bin][-1][1], 0)
-                )
-            else:
-                place_box_in_bin(
-                    bins[best_bin], box_height, box_width, bin_width, bin_height
-                )
-                position.append(
-                    (best_bin, bins[best_bin][-1][0], bins[best_bin][-1][1], 1)
-                )
 
-    initial_positions = [None] * num_boxes
+    initial_position = [None] * len(box_dims)
     for i, pos in enumerate(position):
-        initial_positions[boxes[i][0]] = pos
-    return initial_positions
+        initial_position[boxes[i][0]] = pos
+    return initial_position
 
 
-def can_place_in_bin(bin, w, h, bin_width, bin_height):
-    for x in range(bin_width - w + 1):
-        for y in range(bin_height - h + 1):
-            if all(
-                x + w <= bin_x
-                or x >= bin_x + bin_w
-                or y + h <= bin_y
-                or y >= bin_y + bin_h
-                for bin_x, bin_y, bin_w, bin_h in bin
-            ):
-                return True
-    return False
+def can_place_in_bin(bin, x, y, box_width, box_height, bin_width, bin_height):
+    if x + box_width > bin_width or y + box_height > bin_height:
+        return False
+    for bx, by, bw, bh in bin:
+        if not (
+            x + box_width <= bx or x >= bx + bw or y + box_height <= by or y >= by + bh
+        ):
+            return False
+    return True
 
 
 def calculate_space_left(bin, bin_width, bin_height):
@@ -151,21 +141,6 @@ def calculate_space_left(bin, bin_width, bin_height):
     for x, y, bin_w, bin_h in bin:
         space_left -= bin_w * bin_h
     return space_left
-
-
-def place_box_in_bin(bin, w, h, bin_width, bin_height):
-    for x in range(bin_width - w + 1):
-        for y in range(bin_height - h + 1):
-            if all(
-                x + w <= bin_x
-                or x >= bin_x + bin_w
-                or y + h <= bin_y
-                or y >= bin_y + bin_h
-                for bin_x, bin_y, bin_w, bin_h in bin
-            ):
-                bin.append((x, y, w, h))
-                return True
-    return False
 
 
 def pso_2d_bin_packing(
@@ -177,16 +152,22 @@ def pso_2d_bin_packing(
     max_iter,
     w=0.5,
     c1=1.5,
-    c2=1.5,
+    c2=3,
     time_limit=None,
     verbose=True,
 ):
     if time_limit is not None:
         tic = perf_counter()
-    initial_position = best_fit_decreasing(num_boxes, box_dims, bin_width, bin_height)
+    bfd_initial_position = best_fit_decreasing(box_dims, bin_width, bin_height)
     swarm = [
-        Particle(num_boxes, bin_width, bin_height, box_dims, initial_position)
-        for _ in range(num_particles)
+        Particle(
+            num_boxes,
+            bin_width,
+            bin_height,
+            box_dims,
+            initial_position=bfd_initial_position if i == 0 else None,
+        )
+        for i in range(num_particles)
     ]
     global_best_position = None
     global_best_fitness = float("inf")
@@ -197,11 +178,6 @@ def pso_2d_bin_packing(
             if toc - tic >= time_limit:
                 print(f"Time limit exhausted. Runtime: {toc - tic}")
                 break
-            else:
-                tic = perf_counter()
-        if global_best_fitness < 1000:
-            print(f"Converged in {i} iterations.")
-            break
         for particle in swarm:
             fitness = fitness_function(
                 particle.position, bin_width, bin_height, particle.box_dims

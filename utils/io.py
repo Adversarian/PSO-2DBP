@@ -48,8 +48,8 @@ def get_arg_parser():
     parser.add_argument(
         "-c2",
         type=float,
-        default=1.5,
-        help="Social coefficient. Defaults to `1.5`.",
+        default=2.5,
+        help="Social coefficient. Defaults to `2.5`.",
     )
     parser.add_argument(
         "--time_limit",
