@@ -5,24 +5,32 @@ import numpy as np
 
 class Particle:
     def __init__(
-        self, num_boxes, bin_width, bin_height, box_dims, initial_position=None
+        self,
+        num_boxes,
+        bin_width,
+        bin_height,
+        box_dims,
+        initial_position=None,
+        min_num_bins=None,
     ):
         self.num_boxes = num_boxes
         self.bin_width = bin_width
         self.bin_height = bin_height
         self.box_dims = box_dims  # List of tuples (box_width, box_height)
-        self.position = self.initialize_position(initial_position)
+        self.position = self.initialize_position(
+            initial_position, min_num_bins=min_num_bins
+        )
         self.velocity = np.zeros_like(self.position, dtype=float)
         self.best_position = self.position.copy()
         self.best_fitness = float("inf")
 
-    def initialize_position(self, initial_position):
+    def initialize_position(self, initial_position=None, min_num_bins=None):
         if initial_position is not None:
             return np.array(initial_position, dtype=object)
         # Random initialization if no initial position provided
         position = []
         for i in range(self.num_boxes):
-            bin_num = np.random.randint(0, 10)
+            bin_num = np.random.randint(0, min_num_bins - 1)
             rotation = np.random.choice([0, 1])
             if rotation == 0:
                 w, h = self.box_dims[i]
@@ -86,12 +94,14 @@ def update_velocity(particle, global_best_position, w, c1, c2):
 def update_position(particle):
     particle.position[:, 1:] += particle.velocity[:, 1:]
     for i, (bin_num, x, y, rotation) in enumerate(particle.position):
+        rotation = 0 if rotation <= 0.5 else 1
         if rotation == 0:
             box_width, box_height = particle.box_dims[i]
         else:
             box_height, box_width = particle.box_dims[i]
         particle.position[i][1] = max(0, min(particle.bin_width - box_width, x))
         particle.position[i][2] = max(0, min(particle.bin_height - box_height, y))
+        particle.position[i][3] = rotation
 
 
 def best_fit_decreasing(box_dims, bin_width, bin_height):
@@ -122,7 +132,7 @@ def best_fit_decreasing(box_dims, bin_width, bin_height):
     initial_position = [None] * len(box_dims)
     for i, pos in enumerate(position):
         initial_position[boxes[i][0]] = pos
-    return initial_position
+    return initial_position, len(bins)
 
 
 def can_place_in_bin(bin, x, y, box_width, box_height, bin_width, bin_height):
@@ -158,7 +168,9 @@ def pso_2d_bin_packing(
 ):
     if time_limit is not None:
         tic = perf_counter()
-    bfd_initial_position = best_fit_decreasing(box_dims, bin_width, bin_height)
+    bfd_initial_position, min_num_bins = best_fit_decreasing(
+        box_dims, bin_width, bin_height
+    )
     swarm = [
         Particle(
             num_boxes,
@@ -166,6 +178,7 @@ def pso_2d_bin_packing(
             bin_height,
             box_dims,
             initial_position=bfd_initial_position if i == 0 else None,
+            min_num_bins=min_num_bins,
         )
         for i in range(num_particles)
     ]

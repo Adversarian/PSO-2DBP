@@ -5,9 +5,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def plot_bins(bins, box_dims, bin_width, bin_height, num_boxes, save_to_file=True):
+def plot_bins(bins, box_dims, bin_width, bin_height, fitness_value, save_to_file=True):
     if save_to_file:
-        colors = plt.colormaps.get_cmap("tab20").resampled(num_boxes)
+        colors = plt.colormaps.get_cmap("tab20").resampled(len(box_dims))
         num_bins = len(bins)
         grid_size = math.ceil(math.sqrt(num_bins))
         fig, axs = plt.subplots(grid_size, grid_size, figsize=(15, 15))
@@ -46,5 +46,7 @@ def plot_bins(bins, box_dims, bin_width, bin_height, num_boxes, save_to_file=Tru
             else:
                 ax.axis("off")
 
+        plt.suptitle(f"Best Fitness Value: {fitness_value:.2f}", fontsize=16)
         plt.tight_layout()
+        plt.subplots_adjust(top=0.95)  # Adjust to make room for the suptitle
         plt.savefig("solution.png")

@@ -1,11 +1,11 @@
+from pprint import pformat
+
 from utils import (
     get_arg_parser,
     parse_test_case_from_file,
     plot_bins,
     pso_2d_bin_packing,
 )
-
-from pprint import pformat
 
 if __name__ == "__main__":
     parser = get_arg_parser()
@@ -14,7 +14,7 @@ if __name__ == "__main__":
     num_boxes, box_dims, bin_width, bin_height = parse_test_case_from_file(
         path=args.test_case
     )
-    best_positon, best_fitness, num_bins, bins = pso_2d_bin_packing(
+    best_position, best_fitness, num_bins, bins = pso_2d_bin_packing(
         num_boxes=num_boxes,
         box_dims=box_dims,
         bin_width=bin_width,
@@ -32,6 +32,6 @@ if __name__ == "__main__":
         box_dims=box_dims,
         bin_width=bin_width,
         bin_height=bin_height,
-        num_boxes=num_boxes,
+        fitness_value=best_fitness,
         save_to_file=args.save_fig,
     )
